@@ -2,145 +2,146 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Translation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background-color: #f5f7fa;
-            min-height: 100vh;
+            font-family: system-ui, sans-serif;
+            background: #f5f7fa;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
+            min-height: 100vh;
         }
 
         .container {
-            background: #ffffff;
+            background: white;
             padding: 32px;
+            width: 520px;
             border-radius: 8px;
-            width: 100%;
-            max-width: 500px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            box-shadow: 0 8px 24px rgba(0,0,0,.08);
         }
 
         h1 {
             font-size: 22px;
-            margin-bottom: 16px;
-            color: #1f2933;
         }
 
-        p {
-            color: #4b5563;
-            font-size: 14px;
-            margin-bottom: 24px;
-        }
-
-        input[type="file"] {
-            display: block;
-            margin-bottom: 16px;
+        input {
+            margin: 16px 0;
         }
 
         button {
             width: 100%;
             padding: 10px;
-            background-color: #2563eb;
+            background: #2563eb;
             color: white;
             border: none;
             border-radius: 6px;
-            font-size: 14px;
             cursor: pointer;
         }
 
         button:disabled {
-            background-color: #93c5fd;
-            cursor: not-allowed;
+            background: #93c5fd;
         }
 
         .status {
-            margin-top: 16px;
-            font-size: 14px;
-            color: #374151;
+            margin-top: 12px;
         }
 
         .error {
             color: #dc2626;
-            margin-top: 16px;
-            font-size: 14px;
+            margin-top: 12px;
         }
 
         .result {
-            margin-top: 24px;
+            margin-top: 20px;
             padding: 16px;
             background: #f9fafb;
             border-radius: 6px;
-            font-size: 14px;
             white-space: pre-wrap;
-            color: #111827;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Audio Translation</h1>
-        <p>Upload an audio file to translate it to English.</p>
+<div class="container">
+    <h1>Audio Translation</h1>
 
-        <input type="file" id="fileInput" accept=".mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm">
+    <input type="file" id="fileInput">
+    <button id="translateBtn" disabled>Translate</button>
 
-        <button id="translateBtn" disabled>Translate</button>
+    <div class="status" id="status"></div>
+    <div class="error" id="error"></div>
+    <div class="result" id="result"></div>
+</div>
 
-        <div class="status" id="status"></div>
-        <div class="error" id="error"></div>
-        <div class="result" id="result"></div>
-    </div>
+<script>
+const fileInput = document.getElementById("fileInput");
+const translateBtn = document.getElementById("translateBtn");
+const status = document.getElementById("status");
+const error = document.getElementById("error");
+const result = document.getElementById("result");
 
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const translateBtn = document.getElementById('translateBtn');
-        const status = document.getElementById('status');
-        const error = document.getElementById('error');
-        const result = document.getElementById('result');
+fileInput.addEventListener("change", () => {
+    translateBtn.disabled = !fileInput.files.length;
+    error.textContent = "";
+    result.textContent = "";
+});
 
-        let selectedFile = null;
+translateBtn.addEventListener("click", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
 
-        fileInput.addEventListener('change', () => {
-            selectedFile = fileInput.files[0];
-            translateBtn.disabled = !selectedFile;
-            error.textContent = '';
-            result.textContent = '';
-        });
+    translateBtn.disabled = true;
+    status.textContent = "Uploading & translating...";
+    error.textContent = "";
+    result.textContent = "";
 
-        translateBtn.addEventListener('click', async () => {
-            if (!selectedFile) return;
+    const formData = new FormData();
+    formData.append("file", file);
 
-            translateBtn.disabled = true;
-            status.textContent = 'Translating...';
-            error.textContent = '';
-            result.textContent = '';
+    const response = await fetch("/api/translate/stream", {
+        method: "POST",
+        body: formData
+    });
 
-            const formData = new FormData();
-            formData.append('file', selectedFile);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
 
-            try {
-                const response = await fetch('/api/translate', {
-                    method: 'POST',
-                    body: formData
-                });
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-                const data = await response.json();
+        const text = decoder.decode(value, { stream: true });
+        const events = text.split("\n\n");
 
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Translation failed');
-                }
+        for (const evt of events) {
+            if (!evt.trim()) continue;
 
-                result.textContent = data.text;
-            } catch (err) {
-                error.textContent = err.message || 'An error occurred';
-            } finally {
-                status.textContent = '';
+            const lines = evt.split("\n");
+            const eventType = lines.find(l => l.startsWith("event:"))?.slice(7);
+            const dataLine = lines.find(l => l.startsWith("data:"))?.slice(6);
+
+            if (!eventType || !dataLine) continue;
+
+            const payload = JSON.parse(dataLine);
+
+            if (eventType === "chunk") {
+                result.textContent += payload.text + " ";
+            }
+
+            if (eventType === "error") {
+                error.textContent = payload.error;
                 translateBtn.disabled = false;
             }
-        });
-    </script>
+
+            if (eventType === "done") {
+                status.textContent = "Translation complete";
+                translateBtn.disabled = false;
+            }
+        }
+    }
+});
+</script>
 </body>
 </html>
