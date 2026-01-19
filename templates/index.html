@@ -9,8 +9,9 @@
         .box { background: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; min-height: 100px; white-space: pre-wrap; margin-bottom: 20px; overflow-y: auto; max-height: 400px; line-height: 1.6; }
         .status { color: #2563eb; font-weight: bold; margin-bottom: 10px; }
         .minutes-box { background: #e7f3ff; border-left: 4px solid #2563eb; }
-        button { background: #2563eb; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #ccc; }
+        button { background: #2563eb; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .srt-btn { background: #10b981; display: none; } /* Green button for SRT */
     </style>
 </head>
 <body>
@@ -19,26 +20,48 @@
         <div style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
             <input type="file" id="fileInput">
             <label><input type="checkbox" id="minutesToggle" checked> Generate Minutes Report</label>
-            <button id="startBtn">Process Meeting</button>
+            <div style="display:flex;">
+                <button id="startBtn">Process Meeting</button>
+                <button id="downloadSrtBtn" class="srt-btn">Download Subtitles (.SRT)</button>
+            </div>
         </div>
         <div id="status" class="status">Ready</div>
-        <h3>Transcript</h3>
+        
+        <h3>Live Transcript</h3>
         <div id="transcript" class="box"></div>
+
         <div id="minutesArea" style="display:none;">
             <h3>Meeting Minutes Report</h3>
             <div id="minutes" class="box minutes-box"></div>
         </div>
     </div>
+
     <script>
+        let srtData = "";
+
+        // Trigger file download in browser
+        document.getElementById('downloadSrtBtn').onclick = function() {
+            const blob = new Blob([srtData], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "meeting_subtitles.srt";
+            a.click();
+        };
+
         document.getElementById('startBtn').onclick = async function() {
             const file = document.getElementById('fileInput').files[0];
-            if (!file) return alert("Select a file");
+            if (!file) return alert("Select a file first");
+            
             this.disabled = true;
+            srtData = "";
+            document.getElementById('downloadSrtBtn').style.display = "none";
             document.getElementById('transcript').textContent = "";
             document.getElementById('minutesArea').style.display = "none";
             
             const formData = new FormData();
             formData.append("file", file);
+            
             const response = await fetch(`/api/translate/stream?generate_minutes=${document.getElementById('minutesToggle').checked}`, { 
                 method: "POST", body: formData 
             });
@@ -50,26 +73,31 @@
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
+                
                 buffer += decoder.decode(value, { stream: true });
                 let parts = buffer.split("\n\n");
                 buffer = parts.pop();
 
                 for (let part of parts) {
                     if (!part.includes("data:")) continue;
-                    const eventType = part.match(/event: (.*)/)?.[1];
+                    const event = part.match(/event: (.*)/)?.[1];
                     const data = JSON.parse(part.match(/data: (.*)/)?.[1]);
 
-                    if (eventType === "status") document.getElementById('status').textContent = data.msg;
-                    else if (eventType === "chunk") {
+                    if (event === "status") {
+                        document.getElementById('status').textContent = data.msg;
+                    } else if (event === "chunk") {
                         document.getElementById('transcript').textContent += data.text;
                         document.getElementById('transcript').scrollTop = 99999;
-                    } else if (eventType === "minutes") {
+                    } else if (event === "srt") {
+                        srtData = data.content;
+                        document.getElementById('downloadSrtBtn').style.display = "inline-block";
+                    } else if (event === "minutes") {
                         document.getElementById('minutesArea').style.display = "block";
                         document.getElementById('minutes').textContent = data.report;
-                    } else if (eventType === "done") {
+                    } else if (event === "done") {
                         document.getElementById('status').textContent = "✅ Complete";
                         this.disabled = false;
-                    } else if (eventType === "error") {
+                    } else if (event === "error") {
                         alert("Error: " + data.error);
                         this.disabled = false;
                     }

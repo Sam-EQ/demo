@@ -10,9 +10,7 @@ def process_and_segment(file_bytes: bytes, extension: str, segment_minutes: floa
     """
     1. Converts input to Mono, 16kHz, 64kbps MP3.
     2. Segments into 1-minute chunks (~480KB each).
-       At 64kbps, 1 minute is safely under the 22MB limit.
     """
-    # Create temp file for the raw upload
     with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as temp_input:
         temp_input.write(file_bytes)
         temp_input_path = temp_input.name
@@ -32,7 +30,6 @@ def process_and_segment(file_bytes: bytes, extension: str, segment_minutes: floa
         subprocess.run(conv_cmd, check=True, capture_output=True)
         
         # Step 2: Segment into 1-minute parts (60 seconds)
-        # Using '-c copy' ensures no audio loss during splitting
         output_pattern = base_path + "_%03d.mp3"
         segment_seconds = int(segment_minutes * 60)
         
@@ -41,7 +38,7 @@ def process_and_segment(file_bytes: bytes, extension: str, segment_minutes: floa
             "-f", "segment", "-segment_time", str(segment_seconds),
             "-c", "copy", output_pattern
         ]
-        logger.info(f"Splitting into {segment_minutes} minute segments for live feel...")
+        logger.info(f"Segmenting into {segment_minutes} minute chunks...")
         subprocess.run(split_cmd, check=True, capture_output=True)
 
         # Collect segment paths

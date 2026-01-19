@@ -24,9 +24,16 @@ VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".webm", ".avi"}
 AUDIO_EXTS = {".mp3", ".mpeg", ".mpga", ".m4a", ".wav"}
 ALLOWED_EXTENSIONS = VIDEO_EXTS.union(AUDIO_EXTS)
 
+def format_srt_time(seconds: float) -> str:
+    """Converts float seconds to SRT timestamp format HH:MM:SS,mmm"""
+    td_hours = int(seconds // 3600)
+    td_mins = int((seconds % 3600) // 60)
+    td_secs = int(seconds % 60)
+    td_msecs = int((seconds % 1) * 1000)
+    return f"{td_hours:02d}:{td_mins:02d}:{td_secs:02d},{td_msecs:03d}"
+
 async def generate_minutes(transcript_text: str):
-    """Generate a formal report using GPT-4o"""
-    prompt = f"Analyze this transcript and provide a Meeting Minutes report (Summary, Discussion, Decisions, Action Items) in Markdown.\n\nTranscript:\n{transcript_text}"
+    prompt = f"Analyze this transcript and provide a Meeting Minutes report in Markdown.\n\nTranscript:\n{transcript_text}"
     response = await asyncio.to_thread(
         client.chat.completions.create,
         model="gpt-4o",
@@ -41,32 +48,46 @@ async def process_media_stream(file_bytes: bytes, ext: str, should_summarize: bo
     full_audio = None
     segments = []
     full_transcript = []
+    srt_content = ""
+    subtitle_index = 1
+    
+    # Each segment is 60 seconds (set in preprocess.py)
+    CHUNK_DURATION = 60.0
 
     try:
         yield f"event: status\ndata: {json.dumps({'msg': 'Initializing (Mono 16kHz)...'})}\n\n"
         
-        # 1. Split into 1-minute segments to provide frequent UI updates
         full_audio, segments = await asyncio.to_thread(process_and_segment, file_bytes, ext, segment_minutes=1.0)
         
-        for i, path in enumerate(segments, 1):
-            yield f"event: status\ndata: {json.dumps({'msg': f'Transcribing minute {i}/{len(segments)}...'})}\n\n"
+        for i, path in enumerate(segments):
+            time_offset = i * CHUNK_DURATION
+            yield f"event: status\ndata: {json.dumps({'msg': f'Transcribing minute {i+1}/{len(segments)}...'})}\n\n"
             
             with open(path, "rb") as f:
-                # Use whisper-1 (most stable for transcription)
                 result = await asyncio.to_thread(
-                    client.audio.translations.create, 
+                    client.audio.transcriptions.create, 
                     model="whisper-1", 
-                    file=f
+                    file=f,
+                    response_format="verbose_json",
+                    timestamp_granularities=["segment"]
                 )
             
-            text = result.text.strip()
-            full_transcript.append(text)
-            
-            # SSE Padding: bypasses browser buffering to ensure text appears immediately
-            padding = ":" + (" " * 1024) + "\n"
-            yield f"{padding}event: chunk\ndata: {json.dumps({'text': text + ' '})}\n\n"
+            # FIXED: Accessing segments as Objects instead of Dictionaries
+            for seg in result.segments:
+                start_str = format_srt_time(seg.start + time_offset)
+                end_str = format_srt_time(seg.end + time_offset)
+                text = seg.text.strip()
+                
+                srt_block = f"{subtitle_index}\n{start_str} --> {end_str}\n{text}\n\n"
+                srt_content += srt_block
+                subtitle_index += 1
 
-        # 2. Final Report Generation
+            full_transcript.append(result.text.strip())
+            padding = ":" + (" " * 1024) + "\n"
+            yield f"{padding}event: chunk\ndata: {json.dumps({'text': result.text + ' '})}\n\n"
+
+        yield f"event: srt\ndata: {json.dumps({'content': srt_content})}\n\n"
+
         if should_summarize:
             yield f"event: status\ndata: {json.dumps({'msg': 'Generating Meeting Minutes...'})}\n\n"
             report = await generate_minutes(" ".join(full_transcript))
@@ -78,7 +99,6 @@ async def process_media_stream(file_bytes: bytes, ext: str, should_summarize: bo
         logger.error(traceback.format_exc())
         yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
     finally:
-        # Cleanup all temp files
         if full_audio and os.path.exists(full_audio): os.remove(full_audio)
         for s in segments:
             if os.path.exists(s): os.remove(s)
