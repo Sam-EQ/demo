@@ -9,6 +9,8 @@ from fastapi.templating import Jinja2Templates
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from audio_utils.preprocess import preprocess_audio
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -47,15 +49,23 @@ async def translate_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File exceeds 25 MB limit")
 
     temp_path = None
+    processed_path = None
 
     try:
+        # Save uploaded file
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
             tmp.write(data)
             temp_path = tmp.name
 
-        logger.info("Translating %s (%.2f MB)", file.filename, size_mb)
+        logger.info("Preprocessing %s (%.2f MB)", file.filename, size_mb)
 
-        with open(temp_path, "rb") as audio:
+        # Preprocess audio (trim silence, mono, 16kHz)
+        processed_path = preprocess_audio(temp_path)
+
+        logger.info("Translating processed audio")
+
+        # Send to OpenAI Whisper
+        with open(processed_path, "rb") as audio:
             result = client.audio.translations.create(
                 model="whisper-1",
                 file=audio
@@ -72,11 +82,13 @@ async def translate_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Translation failed")
 
     finally:
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+        # Cleanup temp files
+        for path in (temp_path, processed_path):
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
 
 @app.get("/health")
