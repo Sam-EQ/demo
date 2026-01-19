@@ -2,146 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Audio Translation</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
+    <title>AI Media Scribe</title>
     <style>
-        body {
-            font-family: system-ui, sans-serif;
-            background: #f5f7fa;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .container {
-            background: white;
-            padding: 32px;
-            width: 520px;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,.08);
-        }
-
-        h1 {
-            font-size: 22px;
-        }
-
-        input {
-            margin: 16px 0;
-        }
-
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        button:disabled {
-            background: #93c5fd;
-        }
-
-        .status {
-            margin-top: 12px;
-        }
-
-        .error {
-            color: #dc2626;
-            margin-top: 12px;
-        }
-
-        .result {
-            margin-top: 20px;
-            padding: 16px;
-            background: #f9fafb;
-            border-radius: 6px;
-            white-space: pre-wrap;
-        }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
+        .container { background: white; width: 100%; max-width: 750px; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .box { background: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; min-height: 100px; white-space: pre-wrap; margin-bottom: 20px; overflow-y: auto; max-height: 400px; line-height: 1.6; }
+        .status { color: #2563eb; font-weight: bold; margin-bottom: 10px; }
+        .minutes-box { background: #e7f3ff; border-left: 4px solid #2563eb; }
+        button { background: #2563eb; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>Audio Translation</h1>
+    <div class="container">
+        <h2>AI Meeting Scribe</h2>
+        <div style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
+            <input type="file" id="fileInput">
+            <label><input type="checkbox" id="minutesToggle" checked> Generate Minutes Report</label>
+            <button id="startBtn">Process Meeting</button>
+        </div>
+        <div id="status" class="status">Ready</div>
+        <h3>Transcript</h3>
+        <div id="transcript" class="box"></div>
+        <div id="minutesArea" style="display:none;">
+            <h3>Meeting Minutes Report</h3>
+            <div id="minutes" class="box minutes-box"></div>
+        </div>
+    </div>
+    <script>
+        document.getElementById('startBtn').onclick = async function() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return alert("Select a file");
+            this.disabled = true;
+            document.getElementById('transcript').textContent = "";
+            document.getElementById('minutesArea').style.display = "none";
+            
+            const formData = new FormData();
+            formData.append("file", file);
+            const response = await fetch(`/api/translate/stream?generate_minutes=${document.getElementById('minutesToggle').checked}`, { 
+                method: "POST", body: formData 
+            });
 
-    <input type="file" id="fileInput">
-    <button id="translateBtn" disabled>Translate</button>
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
 
-    <div class="status" id="status"></div>
-    <div class="error" id="error"></div>
-    <div class="result" id="result"></div>
-</div>
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                let parts = buffer.split("\n\n");
+                buffer = parts.pop();
 
-<script>
-const fileInput = document.getElementById("fileInput");
-const translateBtn = document.getElementById("translateBtn");
-const status = document.getElementById("status");
-const error = document.getElementById("error");
-const result = document.getElementById("result");
+                for (let part of parts) {
+                    if (!part.includes("data:")) continue;
+                    const eventType = part.match(/event: (.*)/)?.[1];
+                    const data = JSON.parse(part.match(/data: (.*)/)?.[1]);
 
-fileInput.addEventListener("change", () => {
-    translateBtn.disabled = !fileInput.files.length;
-    error.textContent = "";
-    result.textContent = "";
-});
-
-translateBtn.addEventListener("click", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-
-    translateBtn.disabled = true;
-    status.textContent = "Uploading & translating...";
-    error.textContent = "";
-    result.textContent = "";
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/api/translate/stream", {
-        method: "POST",
-        body: formData
-    });
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const text = decoder.decode(value, { stream: true });
-        const events = text.split("\n\n");
-
-        for (const evt of events) {
-            if (!evt.trim()) continue;
-
-            const lines = evt.split("\n");
-            const eventType = lines.find(l => l.startsWith("event:"))?.slice(7);
-            const dataLine = lines.find(l => l.startsWith("data:"))?.slice(6);
-
-            if (!eventType || !dataLine) continue;
-
-            const payload = JSON.parse(dataLine);
-
-            if (eventType === "chunk") {
-                result.textContent += payload.text + " ";
+                    if (eventType === "status") document.getElementById('status').textContent = data.msg;
+                    else if (eventType === "chunk") {
+                        document.getElementById('transcript').textContent += data.text;
+                        document.getElementById('transcript').scrollTop = 99999;
+                    } else if (eventType === "minutes") {
+                        document.getElementById('minutesArea').style.display = "block";
+                        document.getElementById('minutes').textContent = data.report;
+                    } else if (eventType === "done") {
+                        document.getElementById('status').textContent = "✅ Complete";
+                        this.disabled = false;
+                    } else if (eventType === "error") {
+                        alert("Error: " + data.error);
+                        this.disabled = false;
+                    }
+                }
             }
-
-            if (eventType === "error") {
-                error.textContent = payload.error;
-                translateBtn.disabled = false;
-            }
-
-            if (eventType === "done") {
-                status.textContent = "Translation complete";
-                translateBtn.disabled = false;
-            }
-        }
-    }
-});
-</script>
+        };
+    </script>
 </body>
 </html>
