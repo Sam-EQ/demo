@@ -13,14 +13,37 @@ A production-ready FastAPI backend service for audio file ingestion, preprocessi
 
 ## Prerequisites
 
-- **Python 3.11** or higher
-- **FFmpeg** installed and available in your PATH
+- **Python 3.11** or higher (for local development)
+- **FFmpeg** installed and available in your PATH (for local development)
   - macOS: `brew install ffmpeg`
   - Ubuntu/Debian: `sudo apt-get install ffmpeg`
   - Windows: Download from [FFmpeg website](https://ffmpeg.org/download.html)
 - **OpenAI API Key** (set via environment variable)
+- **Docker and Docker Compose** (for containerized deployment)
 
-## Installation
+## Quick Start with Docker
+
+1. Create a `.env` file in the project root:
+   ```bash
+   cp .env.example .env
+   # Edit .env and set your OPENAI_API_KEY
+   ```
+
+2. Start the service:
+   ```bash
+   docker-compose up --build
+   ```
+
+3. The API will be available at `http://localhost:8000`
+
+4. View API documentation at `http://localhost:8000/docs`
+
+To stop the service:
+```bash
+docker-compose down
+```
+
+## Installation (Local Development)
 
 1. Clone or navigate to the project directory:
    ```bash
@@ -41,41 +64,28 @@ A production-ready FastAPI backend service for audio file ingestion, preprocessi
 
 ## Environment Variables
 
-Set the following environment variables:
+Create a `.env` file in the project root (copy from `.env.example`):
+
+```bash
+# Required
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional (defaults shown)
+# TEMP_DIR=/tmp/audio_processing
+# MAX_AUDIO_DURATION_SECONDS=300
+# MAX_FILE_SIZE_BYTES=10485760
+# CHUNK_MAX_LENGTH_SECONDS=60
+# TARGET_LANGUAGE=en
+# LOG_LEVEL=INFO
+# TRANSCRIPTION_MODEL=whisper-1
+# TRANSLATION_MODEL=gpt-4o-mini
+```
+
+For local development without Docker, you can also export environment variables:
 
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
-
-### Optional Configuration
-
-```bash
-# Temporary directory for audio processing (default: /tmp/audio_processing)
-export TEMP_DIR="/tmp/audio_processing"
-
-# Maximum audio duration in seconds (default: 300)
-export MAX_AUDIO_DURATION_SECONDS="300"
-
-# Maximum file size in bytes (default: 10485760 = 10 MB)
-export MAX_FILE_SIZE_BYTES="10485760"
-
-# Maximum chunk length in seconds (default: 60)
-export CHUNK_MAX_LENGTH_SECONDS="60"
-
-# Default target language for translation (default: en)
-export TARGET_LANGUAGE="en"
-
-# Logging level: DEBUG, INFO, WARNING, ERROR (default: INFO)
-export LOG_LEVEL="INFO"
-
-# Transcription model: whisper-1 or gpt-4o-transcribe (default: whisper-1)
-export TRANSCRIPTION_MODEL="whisper-1"
-
-# Translation model (default: gpt-4o-mini)
-export TRANSLATION_MODEL="gpt-4o-mini"
-```
-
-You can also create a `.env` file in the project root with these variables.
 
 ## Running the Service
 

@@ -3,6 +3,7 @@ import os
 import time
 import aiofiles
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from loguru import logger
 from app.core.config import settings
@@ -59,40 +60,79 @@ async def transcribe_and_translate(
                 detail=f"Unsupported file format '{suffix}'. Supported formats: .wav, .mp3, .m4a"
             )
         
-        # Read and validate file size
-        contents = await file.read()
-        file_size = len(contents)
-        if file_size > settings.MAX_FILE_SIZE_BYTES:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File size {file_size} bytes exceeds maximum allowed {settings.MAX_FILE_SIZE_BYTES} bytes"
-            )
-        
-        if file_size == 0:
-            raise HTTPException(status_code=400, detail="Uploaded file is empty")
-        
-        logger.info(f"Processing file: {file.filename} ({file_size} bytes), target_language={final_target}")
-        
-        # Save uploaded file temporarily
+        # Stream file to disk with size validation (prevents memory spike)
         os.makedirs(settings.TEMP_DIR, exist_ok=True)
         tmp_filename = f"upload_{int(time.time() * 1000000)}_{file.filename}"
         tmp_path = os.path.join(settings.TEMP_DIR, tmp_filename)
         
-        async with aiofiles.open(tmp_path, "wb") as f:
-            await f.write(contents)
+        file_size = 0
+        size_exceeded = False
+        try:
+            async with aiofiles.open(tmp_path, "wb") as f:
+                while True:
+                    # Read in chunks to avoid loading entire file into memory
+                    chunk = await file.read(8192)  # 8KB chunks
+                    if not chunk:
+                        break
+                    
+                    file_size += len(chunk)
+                    
+                    # Enforce size limit during streaming
+                    if file_size > settings.MAX_FILE_SIZE_BYTES:
+                        size_exceeded = True
+                        break
+                    
+                    await f.write(chunk)
+        except Exception as e:
+            # Clean up partial file on any error during streaming
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            logger.error(f"Error during file streaming: {e}")
+            raise HTTPException(status_code=500, detail="Error while receiving file upload")
+        
+        # Handle size limit exceeded
+        if size_exceeded:
+            # Clean up partial file
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=413,
+                detail=f"File size exceeds maximum allowed {settings.MAX_FILE_SIZE_BYTES} bytes"
+            )
+        
+        if file_size == 0:
+            # Clean up empty file
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        
+        logger.info(f"Processing file: {file.filename} ({file_size} bytes), target_language={final_target}")
         
         logger.debug(f"Saved uploaded file to: {tmp_path}")
         
-        # Step 1: Transcribe audio
-        original_transcript, detected_language, chunk_transcripts, audio_duration, chunk_paths = transcribe_full(tmp_path)
+        # Step 1: Transcribe audio (offload to threadpool to prevent event loop blocking)
+        original_transcript, detected_language, chunk_transcripts, audio_duration, chunk_paths = await run_in_threadpool(
+            transcribe_full, tmp_path
+        )
         
         # Store chunk paths for cleanup
         chunks_info = chunk_paths
         
         logger.info(f"Transcription complete: language={detected_language}, transcript_length={len(original_transcript)}")
         
-        # Step 2: Translate transcript
-        translated_transcript = translate_text(original_transcript, final_target)
+        # Step 2: Translate transcript (offload to threadpool to prevent event loop blocking)
+        translated_transcript = await run_in_threadpool(
+            translate_text, original_transcript, final_target
+        )
         logger.info(f"Translation complete: target={final_target}, translated_length={len(translated_transcript)}")
         
         # Step 3: Calculate processing time
