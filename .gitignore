@@ -1,0 +1,39 @@
+# Images
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.json
+
+# Documents
+*.pdf
+
+# Environment variables
+.env
+.env.*
+
+# Pickle files
+*.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Optional: OS junk
+.DS_Store
+
+
+# Markdown files
+*.md
+*.mdm
+
+# LMDB database files
+*.mdb
+lmdb_data/
+**/lmdb_data/
+
+# Backup folders
+backup/

@@ -1,0 +1,8 @@
+{
+    "Announcements": "651418e5e5b5cb9ec4d17bd2", // no data
+    "JournalLikes": "651418f2b3e805cff848985c",// dont train this data
+    "KeyContacts": "65141914c715bc610065b38f",// dont train this data for now
+    "ToolkitDashboard": "65141923e5b5cb9ec4d17c51",// no data i guess
+    "WebcastQuestions": "66559e709eeb01c999011856" // train this data
+}
+
