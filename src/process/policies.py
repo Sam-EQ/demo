@@ -1,111 +1,132 @@
 import asyncio
-import json
 import logging
+import json
 
 logger = logging.getLogger(__name__)
-
-if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-    import sys
-    sys.path.append("/Users/ezhilrajselvaraj/Ezhil/ever_quint/perkinswill/hub/talent_toolkit/")
 
 from src.config import EMPLOYEE_HANDBOOK
 from src.mongo.data import MongoData
 from src.mongo.default import MongoDefault
-from src.process.chunk_processing.format.benefits import benefits
 from src.cache.chunk_embedding import LMDBEmbeddingCache
 from src.llm.openai_client import OpenAIClient
 from src.utils.utils import Utils
 
 
-class Policies():
-    def __init__(self):
+class Policies:
+    def __init__(self, reuse=True):
         self.mongo_data = MongoData()
         self.mongo_default = MongoDefault()
         self.embedding_cache = LMDBEmbeddingCache()
         self.openai_client = OpenAIClient()
+        self.reuse = reuse
+
+    async def _get_user_info(self, user_id):
+        try:
+            user = await self.mongo_default.get_user_details(user_id)
+            if not user:
+                return "Unknown User", "Unknown Email"
+
+            name_parts = [
+                user.get("name", {}).get("first"),
+                user.get("name", {}).get("middle"),
+                user.get("name", {}).get("last"),
+            ]
+            full_name = " ".join([p for p in name_parts if p])
+            email = user.get("email", "Unknown Email")
+
+            return full_name, email
+
+        except Exception as e:
+            logger.warning(f"Error fetching user {user_id}: {e}")
+            return "Unknown User", "Unknown Email"
 
     async def process(self):
         policies_data = await self.mongo_data.get_all_active_data(str(EMPLOYEE_HANDBOOK))
         results = []
-        for b_data in policies_data:
 
-            _id = b_data.get("_id", "")
-            layouts = b_data.get("layouts",{})
-            layout = b_data.get("layout","")
-            final_layout = b_data.get("finalLayout","")
-            values = b_data.get("values","")
-            icon = b_data.get("icon","")
-            path = b_data.get("path","")
-            name = b_data.get("name","")
-            sortOrder = b_data.get("sortOrder","")
-            policyId = b_data.get("policyId","")
-            parentId = b_data.get("parentId","")
-            regions = b_data.get("regions",[]) # add join like usa, uk, india
-            countries = b_data.get("countries",[]) # same as region
-            locations = b_data.get("locations",[]) # all data are empty
-            companyIds = b_data.get("companyIds",[]) 
-            # ============ company ================
-            company_data = ""
-            for index,c_id in enumerate(companyIds):
-                temp_c_data = await self._process_company(c_id)
-                company_data+= f'Company {index+1} :\n Name of the Company : {temp_c_data["name"]}\nShort code for the company : {temp_c_data["shortName"]}'
-            # ==========
-            allUsers = b_data.get("allUsers","") # bool not needed
-            userIds = b_data.get("userIds",[]) 
-            # =============== user process ============
-            user_data = []
-            for d_user in user_data:
-                val = await self.mongo_default.get_user_details(str(d_user))
-                update_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
-                update_id_email = val["email"]
-            # ===========
-            acceptanceForm = b_data.get("acceptanceForm","")
-            department = b_data.get("department","")
-            restrictBy = b_data.get("restrictBy","")
-            leadershipTitle = b_data.get("leadershipTitle","")
-            jobTitle = b_data.get("jobTitle","")
-            status = b_data.get("status","")
-            createdAt = b_data.get("createdAt","")
-            updatedAt = b_data.get("updatedAt","")
+        for policy in policies_data:
+            try:
+                name = policy.get("name", "")
+                department = policy.get("department", "")
+                leadershipTitle = policy.get("leadershipTitle", "")
+                jobTitle = policy.get("jobTitle", "")
+                status = policy.get("status", "")
 
-            creatorId = b_data.get("creatorId","")
-            val = await self.mongo_default.get_user_details(creatorId)
-            creator_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
-            creator_id_email = val["email"]
+                regions = ", ".join(policy.get("regions", []))
+                countries = ", ".join(policy.get("countries", []))
 
-            updatedById = b_data.get("updatedById","")
-            val = await self.mongo_default.get_user_details(updatedById)
-            update_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
-            update_id_email = val["email"]
+                createdAt = policy.get("createdAt", "")
+                updatedAt = policy.get("updatedAt", "")
 
-            
+                creatorId = policy.get("creatorId")
+                updatedById = policy.get("updatedById")
 
+                creator_name, creator_email = await self._get_user_info(creatorId)
+                updater_name, updater_email = await self._get_user_info(updatedById)
 
-            
-        
-            
-            # try:
-            #     key = Hashing.text_hash(formatted_benefits)
-            # except Exception as e:
-            #     logger.info(f"Error in hashing the text {e}")
-            #     raise RuntimeError(f"Error in hashing the text {e}")
-            # cached = self.cache.get(key)
-            # if self.reuse and cached:
-            #     embeddings = cached
-            #     logger.info("Taken chunk from the Cache")
-            # else:
-            #     embeddings = await self.openai_client.get_embedding(formatted_benefits)
-            #     self.cache.set(key, embeddings)
-            # results.append( { "id": str(b_data['_id']), 
-            #         "text": formatted_benefits, 
-            #         "search_content" : formatted_benefits,
-            #         "exact_content" : formatted_benefits,
-            #         "metadata":b_data, 
-            #         "vector_field": embeddings} )
+                policy_json = (
+                    "```json\n"
+                    + json.dumps(Utils.make_json_safe(policy), indent=4)
+                    + "\n```"
+                )
+
+                formatted_text = f"""
+{policy_json}
+
+# Policy Document
+
+## Policy Information
+- **Name:** {name}
+- **Department:** {department}
+- **Leadership Title:** {leadershipTitle}
+- **Job Title:** {jobTitle}
+- **Status:** {status}
+
+## Applicability
+- **Regions:** {regions}
+- **Countries:** {countries}
+
+## Creator Information
+- Name: {creator_name}
+- Email: {creator_email}
+
+## Last Updated By
+- Name: {updater_name}
+- Email: {updater_email}
+
+## Timestamps
+- Created At: {createdAt}
+- Updated At: {updatedAt}
+"""
+
+                key = Utils.text_hash(formatted_text)
+
+                cached_embedding = self.embedding_cache.get(key)
+
+                if self.reuse and cached_embedding:
+                    embedding = cached_embedding
+                    logger.info("Using cached embedding")
+                else:
+                    embedding = await self.openai_client.get_embedding(formatted_text)
+                    self.embedding_cache.set(key, embedding)
+                    logger.info("Generated new embedding")
+
+                results.append({
+                    "id": str(policy.get("_id")),
+                    "text": formatted_text,
+                    "search_content": formatted_text,
+                    "exact_content": formatted_text,
+                    "metadata": Utils.make_json_safe(policy),
+                    "vector_field": embedding
+                })
+
+            except Exception as e:
+                logger.exception(f"Error processing policy: {e}")
+
         return results
-            
+
+
 if __name__ == "__main__":
     obj = Policies()
-    asyncio.run(obj.process())
+    data = asyncio.run(obj.process())
+    print(f"Processed {len(data)} policies")
