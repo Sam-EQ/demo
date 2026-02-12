@@ -2,9 +2,9 @@ import asyncio
 
 from src.mongo.data import MongoData
 from src.mongo.default import MongoDefault
-from talent_toolkit.src.llm.openai_client import get_embedding
+from src.llm.openai_client import OpenAIClient
 from src.config import OPENSEARCH_USERNAME,OPENSEARCH_PASSWORD
-from talent_toolkit.src.utils.utils import make_json_safe
+from src.utils.utils import Utils
 from src.config import *
 from src.process.benefits import Benefits
 
@@ -26,18 +26,20 @@ class Pipeline():
         self.benefits = Benefits()
 
     async def _need_to_process(self):
-        process = ['BENEFITS' ,'POLICIES']
+        process = ['BENEFITS' ,'POLICIES',"WEBCAST_QUESTION"]
         return process
         
     async def run(self):
-        process_data = self._need_to_process()
+        process_data = await self._need_to_process()
         final_result = []
         if "BENEFITS" in process_data:
-            result = self.benefits.process()
+            result = await self.benefits.process()
             final_result.extend(result)
         elif "POLICIES" in process_data:
             pass
             # result = self.policies.process(e)
+        elif "WEBCAST_QUESTION" in process_data:
+            pass
         
         actions = [
             {

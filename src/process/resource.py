@@ -46,7 +46,7 @@ class Policies():
             countries = b_data.get("countries",[]) # same as region
             locations = b_data.get("locations",[]) # all data are empty
             companyIds = b_data.get("companyIds",[]) 
-            # ============ company ================
+            # ============ company ============
             company_data = ""
             for index,c_id in enumerate(companyIds):
                 temp_c_data = await self._process_company(c_id)
@@ -54,13 +54,13 @@ class Policies():
             # ==========
             allUsers = b_data.get("allUsers","") # bool not needed
             userIds = b_data.get("userIds",[]) 
-            # =============== user process ============
+            # ============ user process ============
             user_data = []
             for d_user in user_data:
                 val = await self.mongo_default.get_user_details(str(d_user))
                 update_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
                 update_id_email = val["email"]
-            # ===========
+            # =========== 
             acceptanceForm = b_data.get("acceptanceForm","")
             department = b_data.get("department","")
             restrictBy = b_data.get("restrictBy","")

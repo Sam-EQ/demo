@@ -2,6 +2,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import asyncio
 
+if __name__=="__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    import sys
+    sys.path.append("/Users/ezhilrajselvaraj/Ezhil/ever_quint/perkinswill/hub/talent_toolkit")
+
 from src.config import MONGO_DEFAULT_URL
 
 class MongoDefault:
@@ -32,4 +38,5 @@ class MongoDefault:
 
 if __name__=="__main__":
     obj = MongoDefault()
-    asyncio.run(obj.get_user_details("5fb29a8e8532ea44674f38a1"))
+    print(asyncio.run(obj.get_user_details("5fb29a8e8532ea44674f3bec")))
+    # print(asyncio.run(obj.get_company_ids()))

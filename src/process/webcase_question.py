@@ -10,7 +10,7 @@ if __name__ == "__main__":
     import sys
     sys.path.append("/Users/ezhilrajselvaraj/Ezhil/ever_quint/perkinswill/hub/talent_toolkit/")
 
-from src.config import EMPLOYEE_HANDBOOK
+from src.config import WEBCAST_QUESTION
 from src.mongo.data import MongoData
 from src.mongo.default import MongoDefault
 from src.process.chunk_processing.format.benefits import benefits
@@ -27,62 +27,22 @@ class Policies():
         self.openai_client = OpenAIClient()
 
     async def process(self):
-        policies_data = await self.mongo_data.get_all_active_data(str(EMPLOYEE_HANDBOOK))
+        policies_data = await self.mongo_data.get_all_active_data(str(WEBCAST_QUESTION))
         results = []
         for b_data in policies_data:
-
-            _id = b_data.get("_id", "")
-            layouts = b_data.get("layouts",{})
-            layout = b_data.get("layout","")
-            final_layout = b_data.get("finalLayout","")
-            values = b_data.get("values","")
-            icon = b_data.get("icon","")
-            path = b_data.get("path","")
-            name = b_data.get("name","")
-            sortOrder = b_data.get("sortOrder","")
-            policyId = b_data.get("policyId","")
-            parentId = b_data.get("parentId","")
-            regions = b_data.get("regions",[]) # add join like usa, uk, india
-            countries = b_data.get("countries",[]) # same as region
-            locations = b_data.get("locations",[]) # all data are empty
-            companyIds = b_data.get("companyIds",[]) 
-            # ============ company ================
-            company_data = ""
-            for index,c_id in enumerate(companyIds):
-                temp_c_data = await self._process_company(c_id)
-                company_data+= f'Company {index+1} :\n Name of the Company : {temp_c_data["name"]}\nShort code for the company : {temp_c_data["shortName"]}'
-            # ==========
-            allUsers = b_data.get("allUsers","") # bool not needed
-            userIds = b_data.get("userIds",[]) 
-            # =============== user process ============
-            user_data = []
-            for d_user in user_data:
-                val = await self.mongo_default.get_user_details(str(d_user))
-                update_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
-                update_id_email = val["email"]
-            # ===========
-            acceptanceForm = b_data.get("acceptanceForm","")
-            department = b_data.get("department","")
-            restrictBy = b_data.get("restrictBy","")
-            leadershipTitle = b_data.get("leadershipTitle","")
-            jobTitle = b_data.get("jobTitle","")
-            status = b_data.get("status","")
-            createdAt = b_data.get("createdAt","")
-            updatedAt = b_data.get("updatedAt","")
-
-            creatorId = b_data.get("creatorId","")
+            print(b_data)
+            question = b_data["question"]
+            answer = b_data["answer"]
+            creatorId = b_data["creatorId"]
             val = await self.mongo_default.get_user_details(creatorId)
             creator_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
             creator_id_email = val["email"]
 
-            updatedById = b_data.get("updatedById","")
+            updatedById = b_data["updatedById"]
             val = await self.mongo_default.get_user_details(updatedById)
             update_id_role = val["name"]["first"] +" "+ val["name"]["middle"] +" "+ val["name"]["last"]
             update_id_email = val["email"]
-
             
-
-
             
         
             

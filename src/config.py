@@ -15,6 +15,8 @@ try:
     POLICIES_VERSION = os.getenv("POLICIES_VERSION",None)
     USER_ACCEPTACE = os.getenv("USER_ACCEPTACE",None)
     VERSION_HISTORY = os.getenv("VERSION_HISTORY",None)
+    WEBCAST_QUESTION = os.getenv("WEBCAST_QUESTION",None)
+    
 
     MONGO_DEFAULT_URL = os.getenv("MONGO_DEFAULT_URL")
     MONGO_DATA_URL = os.getenv("MONGO_DATA_URL")

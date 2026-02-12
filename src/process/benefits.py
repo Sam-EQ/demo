@@ -53,7 +53,16 @@ class Benefits():
             update_id_email = val["email"]
             createdAt = b_data["createdAt"]
             updatedAt = b_data["updatedAt"]
-            description = b_data["description"]
+            # ==============
+            description = b_data.get("description","")
+            uploadedBy = b_data.get("uploadedBy","")
+            parentId = b_data.get("parentId","")
+            talentToolkitType = b_data.get("talentToolkitType","")
+            effectiveDate = b_data.get("effectiveDate","")
+            fileArray = b_data.get("fileArray","")
+            appliesToLocations = b_data.get("appliesToLocations",[])
+            formType = b_data.get("formType","")
+            # ===============
             appliesToCountries = ", ".join(b_data["appliesToCountries"])
             grouping = b_data["grouping"]
             del b_data["isDeleted"]
@@ -61,21 +70,21 @@ class Benefits():
             # ============ company ================
             company_data = ""
             for index,c_id in enumerate(appliesToCompanies):
-                temp_c_data = self._process_company(c_id)
-                company_data+= f"Company {index+1} :\n Name of the Company : {temp_c_data["name"]}\nShort code for the company : {temp_c_data["shortName"]}"
+                temp_c_data = await self._process_company(c_id)
+                company_data+= f'Company {index+1} :\n Name of the Company : {temp_c_data["name"]}\nShort code for the company : {temp_c_data["shortName"]}'
             # ============ studio ==============
             studio_data = ""
             for index,a_studio in enumerate(appliesToStudios):
-                temp_a_data = self._process_studio(a_studio)
+                temp_a_data = await self._process_studio(a_studio)
                 inflation_trends = ""
                 for infla_index, infla in enumerate(temp_a_data["inflationArray"]):
-                    inflation_trends += f"inflation persentage is {infla["percent"]} for the year {infla["year"]}"
-                address = f"city : {infla["address"]["city"]} \ncountry : {infla["address"]["country"]}\nlatitude :{infla["address"]["lat"]}\n longitude : {infla["address"]["long"]}"
-                studio_data+= f"Name : {a_studio["name"]}\nShort Name : {a_studio["shortName"]}\naddress : {address} \ninflation trend : {inflation_trends}"
+                    inflation_trends += f'inflation persentage is {infla["percent"]} for the year {infla["year"]}'
+                address = f'city : {infla["address"]["city"]} \ncountry : {infla["address"]["country"]}\nlatitude :{infla["address"]["lat"]}\n longitude : {infla["address"]["long"]}'
+                studio_data+= f'Name : {a_studio["name"]}\nShort Name : {a_studio["shortName"]}\naddress : {address} \ninflation trend : {inflation_trends}'
             # ========== 
             additional_links_and_data = "" 
             for link_index, link_data in enumerate(b_data["linkArray"]):
-                additional_links_and_data += f"link data {link_index} : {link_data["title"]}({link_data["url"]})"
+                additional_links_and_data += f'link data {link_index} : {link_data["title"]}({link_data["url"]})'
             # =========
             sub_resource_type = b_data["subResourceType"]
 
@@ -102,13 +111,13 @@ class Benefits():
             except Exception as e:
                 logger.info(f"Error in hashing the text {e}")
                 raise RuntimeError(f"Error in hashing the text {e}")
-            cached = self.cache.get(key)
+            cached = self.embedding_cache.get(key)
             if self.reuse and cached:
                 embeddings = cached
                 logger.info("Taken chunk from the Cache")
             else:
                 embeddings = await self.openai_client.get_embedding(formatted_benefits)
-                self.cache.set(key, embeddings)
+                self.embedding_cache.set(key, embeddings)
             results.append( { "id": str(b_data['_id']), 
                     "text": formatted_benefits, 
                     "search_content" : formatted_benefits,
