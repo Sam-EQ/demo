@@ -1,0 +1,72 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+*.manifest
+doc/
+
+# Virtual environments (doc/ is project venv)
+ppt/
+venv/
+.venv/
+env/
+ENV/
+
+pdf/
+Docint/tt/
+*.pdf
+
+
+# ---- Environment & secrets ----
+.env
+.env.local
+.env.*.local
+
+# ---- IDE & editors ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---- Project temp & debug ----
+Docint/tmp/
+Docint/debug/
+
+# ---- Testing & coverage ----
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ---- Type checking & linting ----
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# ---- Logs & cache ----
+*.log
+.cache/
+*.tmp
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Build / packaging ----
+*.egg-info/
+*.egg
+tmp/
