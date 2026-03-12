@@ -1,0 +1,7 @@
+motor
+python-dotenv
+openai
+tiktoken
+spacy
+pandas
+opensearch-py
