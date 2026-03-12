@@ -9,12 +9,7 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-try:
-    nlp = spacy.load("en_core_web_sm")
-except:
-    import spacy.cli
-    spacy.cli.download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm")
 
 
 def split_text(text, max_tokens=500):
@@ -79,32 +74,7 @@ def main():
                 "article_id": article["id"],
                 "title": article["title"],
                 "chunk_id": f"{article['id']}_{i}",
-                "chunk_type": "text",
                 "text": chunk,
-                "image_url": None,
-                "embedding": emb
-            })
-
-        for i, img in enumerate(article["images"]):
-
-            combined = f"""
-Page Title: {article['title']}
-
-Image URL: {img['url']}
-
-Image Description:
-{img['description']}
-"""
-
-            emb = embed(combined)
-
-            dataset.append({
-                "article_id": article["id"],
-                "title": article["title"],
-                "chunk_id": f"{article['id']}_image_{i}",
-                "chunk_type": "image",
-                "text": combined,
-                "image_url": img["url"],
                 "embedding": emb
             })
 

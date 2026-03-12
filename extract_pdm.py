@@ -3,6 +3,7 @@ import json
 import os
 import re
 import requests
+import base64
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
@@ -25,7 +26,6 @@ COLLECTION = "64c0ab8f0339a238341b61b8"
 class PerkinsAuth:
 
     def __init__(self, client_id, client_secret):
-
         self.base_url = "https://api.hub.perkinswill.com"
         self.client_id = client_id
         self.client_secret = client_secret
@@ -41,22 +41,22 @@ class PerkinsAuth:
             "grant_type": "client_credentials"
         }
 
-        headers = {
-            "Content-Type": "application/json"
-        }
+        headers = {"Content-Type": "application/json"}
 
         r = requests.post(url, json=payload, headers=headers)
-
         r.raise_for_status()
 
         data = r.json()
-
         value = data.get("value")
 
         if isinstance(value, str):
             self.token = value
         elif isinstance(value, dict):
-            self.token = value.get("access_token")
+            self.token = value.get("access_token") or value.get("accessToken")
+        else:
+            self.token = data.get("access_token")
+
+        print("Token acquired")
 
         return self.token
 
@@ -72,6 +72,8 @@ def extract_images(text):
 
 
 def describe_image(image_bytes, page_text):
+
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
     prompt = f"""
 You are analyzing an image from the Perkins&Will Project Delivery Manual.
@@ -90,7 +92,10 @@ Focus on UI elements, diagrams, buttons, and labels.
                 "role": "user",
                 "content": [
                     {"type": "input_text", "text": prompt},
-                    {"type": "input_image", "image": image_bytes}
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/png;base64,{image_base64}"
+                    }
                 ]
             }
         ]
@@ -113,9 +118,7 @@ async def extract():
 
     token = auth.get_token()
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = {"Authorization": f"Bearer {token}"}
 
     articles = []
 
@@ -134,48 +137,49 @@ async def extract():
 
         print("Images found:", len(image_urls))
 
-        enriched_text = text
+        images_data = []
 
         for url in image_urls:
 
             try:
 
-                print("Downloading image:", url)
+                print("Downloading:", url)
 
                 r = requests.get(url, headers=headers)
 
                 if r.status_code != 200:
-
-                    print("Failed download:", r.text)
+                    print("Failed:", r.text)
                     continue
 
                 image_bytes = r.content
 
-                print("Calling VLM...")
-
                 description = describe_image(image_bytes, text)
 
-                enriched_text += f"\n\nIMAGE DESCRIPTION:\n{description}\n"
+                images_data.append({
+                    "url": url,
+                    "description": description
+                })
 
                 total_images += 1
 
             except Exception as e:
-
                 print("Image processing failed:", e)
 
         article = {
             "id": str(doc["_id"]),
             "title": doc.get("name"),
-            "parentId": str(doc["parentId"]) if doc.get("parentId") else None,
-            "sortOrder": doc.get("sortOrder"),
-            "countries": doc.get("countries"),
-            "content": enriched_text
+            "metadata": {
+                "parentId": str(doc["parentId"]) if doc.get("parentId") else None,
+                "sortOrder": doc.get("sortOrder"),
+                "countries": doc.get("countries", [])
+            },
+            "content": text,
+            "images": images_data
         }
 
         articles.append(article)
 
     with open("pdm_articles.json", "w") as f:
-
         json.dump(articles, f, indent=2)
 
     print("\nExtraction complete")

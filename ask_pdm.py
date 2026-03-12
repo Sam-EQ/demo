@@ -12,7 +12,7 @@ INDEX_NAME = "pdm_manual"
 
 HOST = os.getenv("OPENSEARCH_URL").replace("https://", "")
 USERNAME = os.getenv("OPENSEARCH_USERNAME")
-PASSWORD = os.getenv("OPENSEARCH_PASSWORD").strip('"').strip("'")
+PASSWORD = os.getenv("OPENSEARCH_PASSWORD")
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -66,9 +66,6 @@ def main():
         src = hit["_source"]
 
         print("\nSOURCE:", src["title"])
-
-        if src["image_url"]:
-            print("Image:", src["image_url"])
 
         print(src["text"][:200])
 

@@ -11,7 +11,7 @@ INDEX_NAME = "pdm_manual"
 
 HOST = os.getenv("OPENSEARCH_URL").replace("https://", "")
 USERNAME = os.getenv("OPENSEARCH_USERNAME")
-PASSWORD = os.getenv("OPENSEARCH_PASSWORD").strip('"').strip("'")
+PASSWORD = os.getenv("OPENSEARCH_PASSWORD")
 
 client = OpenSearch(
     hosts=[{"host": HOST, "port": 443}],
@@ -21,17 +21,12 @@ client = OpenSearch(
 )
 
 mapping = {
-    "settings": {
-        "index": {"knn": True}
-    },
+    "settings": {"index": {"knn": True}},
     "mappings": {
         "properties": {
             "article_id": {"type": "keyword"},
             "title": {"type": "text"},
-            "section_path": {"type": "text"},
-            "chunk_type": {"type": "keyword"},
             "text": {"type": "text"},
-            "image_url": {"type": "keyword"},
             "embedding": {
                 "type": "knn_vector",
                 "dimension": 3072
@@ -41,9 +36,8 @@ mapping = {
 }
 
 if client.indices.exists(index=INDEX_NAME):
-    print("Deleting old index...")
     client.indices.delete(index=INDEX_NAME)
 
 client.indices.create(index=INDEX_NAME, body=mapping)
 
-print("Index created:", INDEX_NAME)
+print("Index created")

@@ -4,5 +4,5 @@ openai
 tiktoken
 spacy
 opensearch-py
-beautifulsoup4
 requests
+beautifulsoup4

@@ -11,6 +11,7 @@ dist/
 build/
 *.manifest
 doc/
+*.json
 
 # Virtual environments (doc/ is project venv)
 ppt/
