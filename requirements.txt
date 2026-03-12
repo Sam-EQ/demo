@@ -3,5 +3,6 @@ python-dotenv
 openai
 tiktoken
 spacy
-pandas
 opensearch-py
+beautifulsoup4
+requests

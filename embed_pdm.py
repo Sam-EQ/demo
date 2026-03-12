@@ -55,46 +55,21 @@ def embed(text):
     return r.data[0].embedding
 
 
-def build_section_path(article, lookup):
-
-    path = [article["title"]]
-
-    parent = article["parentId"]
-
-    while parent:
-
-        parent_article = lookup.get(parent)
-
-        if not parent_article:
-            break
-
-        path.append(parent_article["title"])
-
-        parent = parent_article["parentId"]
-
-    return " > ".join(reversed(path))
-
-
 def main():
 
     with open("pdm_articles.json") as f:
         articles = json.load(f)
 
-    # lookup table
-    lookup = {a["id"]: a for a in articles}
-
     dataset = []
 
     for article in articles:
 
-        content = article["content"]
+        text = article["content"]
 
-        if not content:
-            continue
+        for img in article["images"]:
+            text += f"\n\nIMAGE DESCRIPTION:\n{img['description']}"
 
-        section_path = build_section_path(article, lookup)
-
-        chunks = split_text(content)
+        chunks = split_text(text)
 
         for i, chunk in enumerate(chunks):
 
@@ -103,18 +78,38 @@ def main():
             dataset.append({
                 "article_id": article["id"],
                 "title": article["title"],
-                "section_path": section_path,
-                "parent_id": article["parentId"],
-                "sort_order": article["sortOrder"],
-                "countries": article["countries"],
                 "chunk_id": f"{article['id']}_{i}",
-                "chunk_index": i,
+                "chunk_type": "text",
                 "text": chunk,
+                "image_url": None,
                 "embedding": emb
             })
 
-    with open("pdm_embeddings.json","w") as f:
-        json.dump(dataset,f)
+        for i, img in enumerate(article["images"]):
+
+            combined = f"""
+Page Title: {article['title']}
+
+Image URL: {img['url']}
+
+Image Description:
+{img['description']}
+"""
+
+            emb = embed(combined)
+
+            dataset.append({
+                "article_id": article["id"],
+                "title": article["title"],
+                "chunk_id": f"{article['id']}_image_{i}",
+                "chunk_type": "image",
+                "text": combined,
+                "image_url": img["url"],
+                "embedding": emb
+            })
+
+    with open("pdm_embeddings.json", "w") as f:
+        json.dump(dataset, f)
 
     print("Embedding complete")
     print("Total chunks:", len(dataset))
