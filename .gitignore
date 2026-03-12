@@ -11,7 +11,6 @@ dist/
 build/
 *.manifest
 doc/
-pdm_embeddings.json
 
 # Virtual environments (doc/ is project venv)
 ppt/
